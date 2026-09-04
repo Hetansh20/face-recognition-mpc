@@ -45,6 +45,7 @@ class AuthRepository(private val context: Context) {
 
     fun getFacultyId(): Int = prefs.getInt("faculty_id", 0)
     fun getUserName(): String = prefs.getString("user_name", "Faculty") ?: "Faculty"
+    fun getUserEmail(): String = prefs.getString("user_email", "") ?: ""
     fun getUserRole(): String = prefs.getString("user_role", "FACULTY") ?: "FACULTY"
 }
 
@@ -108,9 +109,52 @@ class AttendanceRepository(private val context: Context) {
         }
     }
 
-    suspend fun stopSession(sessionId: String): Result<SessionSummary> {
+    /** Upload -> Review step: runs recognition on up to 3 photos WITHOUT
+     * marking attendance yet, mirroring the web app's multi_photo_attend. */
+    suspend fun reviewGroupPhotos(sessionId: String, photos: List<ByteArray>): Result<GroupReviewResult> {
         return try {
-            val res = attendanceApi.stopSession(sessionId)
+            val parts = photos.mapIndexed { index, bytes ->
+                val reqBody = bytes.toRequestBody("image/jpeg".toMediaTypeOrNull())
+                MultipartBody.Part.createFormData("image_$index", "photo_$index.jpg", reqBody)
+            }
+            val res = attendanceApi.reviewGroupPhotos(sessionId, parts)
+            if (res.success && res.data != null) {
+                Result.success(res.data)
+            } else {
+                Result.failure(Exception(res.error?.message ?: "Could not process photos"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Review -> Confirm step: commits the faculty-edited present list and
+     * emails present/absent CSVs to the faculty, mirroring the web app's
+     * confirm_attendance. */
+    suspend fun confirmAttendance(
+        sessionId: String,
+        present: List<PresentEntryRequest>,
+        facultyEmail: String?,
+        facultyName: String?
+    ): Result<ConfirmAttendanceResult> {
+        return try {
+            val res = attendanceApi.confirmAttendance(
+                sessionId,
+                ConfirmAttendanceRequest(present, facultyEmail, facultyName)
+            )
+            if (res.success && res.data != null) {
+                Result.success(res.data)
+            } else {
+                Result.failure(Exception(res.error?.message ?: "Could not confirm attendance"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun stopSession(sessionId: String, passcode: String? = null): Result<SessionSummary> {
+        return try {
+            val res = attendanceApi.stopSession(sessionId, StopSessionRequest(passcode))
             if (res.success && res.data != null) {
                 Result.success(res.data)
             } else {
@@ -147,11 +191,17 @@ class AttendanceRepository(private val context: Context) {
         }
     }
 
-    suspend fun downloadCsvReport(sessionId: String? = null): Result<String> {
+    suspend fun downloadPresentCsvReport(sessionId: String): Result<String> {
         return try {
-            val responseBody = attendanceApi.exportCsvReport(sessionId)
-            val csvText = responseBody.string()
-            Result.success(csvText)
+            Result.success(attendanceApi.exportSessionPresentCsv(sessionId).string())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun downloadAbsentCsvReport(sessionId: String): Result<String> {
+        return try {
+            Result.success(attendanceApi.exportSessionAbsentCsv(sessionId).string())
         } catch (e: Exception) {
             Result.failure(e)
         }

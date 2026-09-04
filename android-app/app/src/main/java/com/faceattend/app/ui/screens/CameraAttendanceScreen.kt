@@ -30,6 +30,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.faceattend.app.data.model.MatchedStudent
 import com.faceattend.app.ui.viewmodel.AttendanceViewModel
+import com.faceattend.app.ui.viewmodel.SessionUiState
 import java.io.ByteArrayOutputStream
 
 @Composable
@@ -38,17 +39,28 @@ fun CameraAttendanceScreen(
     className: String,
     subjectName: String,
     attendanceViewModel: AttendanceViewModel,
+    onReviewPhotos: () -> Unit,
     onFinishSession: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val lastResult by attendanceViewModel.lastFrameResult.collectAsState()
+    val sessionState by attendanceViewModel.sessionState.collectAsState()
     val isRecognizing by attendanceViewModel.isRecognizing.collectAsState()
     val isUploadingPhotos by attendanceViewModel.isUploadingPhotos.collectAsState()
     val uploadStatusMessage by attendanceViewModel.uploadStatusMessage.collectAsState()
+    val reviewState by attendanceViewModel.reviewState.collectAsState()
+    val stopSessionError by attendanceViewModel.stopSessionError.collectAsState()
 
     var newlyMarkedList by remember { mutableStateOf<List<MatchedStudent>>(emptyList()) }
+    var showStopDialog by remember { mutableStateOf(false) }
+    var passcodeInput by remember { mutableStateOf("") }
+
+    // Present count reflects the live-polled session state (matches the web
+    // dashboard's 3s polling), falling back to the last live-frame result.
+    val presentCount = (sessionState as? SessionUiState.Active)?.session?.presentCount
+        ?: lastResult?.totalPresent ?: 0
 
     // Launcher for selecting up to 3 photos
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -56,8 +68,8 @@ fun CameraAttendanceScreen(
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
             val selected = uris.take(3)
-            Toast.makeText(context, "Selected ${selected.size} photo(s). Processing attendance...", Toast.LENGTH_SHORT).show()
-            attendanceViewModel.uploadGroupPhotos(sessionId, selected, context)
+            Toast.makeText(context, "Analyzing ${selected.size} photo(s)...", Toast.LENGTH_SHORT).show()
+            attendanceViewModel.uploadAndReviewPhotos(sessionId, selected, context)
         }
     }
 
@@ -66,6 +78,27 @@ fun CameraAttendanceScreen(
             if (res.newlyMarked.isNotEmpty()) {
                 newlyMarkedList = (res.newlyMarked + newlyMarkedList).distinctBy { it.studentId }
             }
+        }
+    }
+
+    // Navigate to the review screen once photos have been analyzed
+    LaunchedEffect(reviewState) {
+        if (reviewState != null) {
+            onReviewPhotos()
+        }
+    }
+
+    LaunchedEffect(stopSessionError) {
+        stopSessionError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            attendanceViewModel.clearStopSessionError()
+        }
+    }
+
+    // Only navigate away once the session has actually stopped (correct passcode)
+    LaunchedEffect(sessionState) {
+        if (sessionState is SessionUiState.Completed) {
+            onFinishSession()
         }
     }
 
@@ -149,7 +182,7 @@ fun CameraAttendanceScreen(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
-                            text = "PRESENT: ${lastResult?.totalPresent ?: 0}",
+                            text = "PRESENT: $presentCount",
                             color = Color(0xFF34D399),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
@@ -211,7 +244,7 @@ fun CameraAttendanceScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(text = student.name, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
-                                    Text(text = "${(student.confidencePct * 100).toInt()}% match", color = Color(0xFF818CF8), fontSize = 12.sp)
+                                    Text(text = "${student.confidencePct.toInt()}% match", color = Color(0xFF818CF8), fontSize = 12.sp)
                                 }
                             }
                         }
@@ -239,10 +272,7 @@ fun CameraAttendanceScreen(
                     }
 
                     Button(
-                        onClick = {
-                            attendanceViewModel.stopSession(sessionId)
-                            onFinishSession()
-                        },
+                        onClick = { showStopDialog = true },
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF43F5E)),
                         modifier = Modifier.weight(1f).height(52.dp)
@@ -251,6 +281,39 @@ fun CameraAttendanceScreen(
                     }
                 }
             }
+        }
+
+        // Re-auth gate before stopping the session, mirroring the web
+        // app's passcode confirmation on /api/faculty/stop_session
+        if (showStopDialog) {
+            AlertDialog(
+                onDismissRequest = { showStopDialog = false; passcodeInput = "" },
+                title = { Text("Confirm End Session") },
+                text = {
+                    Column {
+                        Text("Re-enter your passcode to end this class and export attendance.")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = passcodeInput,
+                            onValueChange = { passcodeInput = it },
+                            label = { Text("Passcode") },
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showStopDialog = false
+                        attendanceViewModel.stopSession(sessionId, passcodeInput)
+                        passcodeInput = ""
+                    }) { Text("End Session") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showStopDialog = false; passcodeInput = "" }) { Text("Cancel") }
+                }
+            )
         }
     }
 }

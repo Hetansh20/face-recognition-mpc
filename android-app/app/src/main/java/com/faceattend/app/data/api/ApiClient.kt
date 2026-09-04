@@ -49,8 +49,24 @@ interface AttendanceApiService {
         @Part image: MultipartBody.Part
     ): ApiResponse<FrameRecognitionResult>
 
+    @Multipart
+    @POST("attendance/sessions/{id}/review")
+    suspend fun reviewGroupPhotos(
+        @Path("id") sessionId: String,
+        @Part images: List<MultipartBody.Part>
+    ): ApiResponse<GroupReviewResult>
+
+    @POST("attendance/sessions/{id}/confirm")
+    suspend fun confirmAttendance(
+        @Path("id") sessionId: String,
+        @Body request: ConfirmAttendanceRequest
+    ): ApiResponse<ConfirmAttendanceResult>
+
     @POST("attendance/sessions/{id}/stop")
-    suspend fun stopSession(@Path("id") sessionId: String): ApiResponse<SessionSummary>
+    suspend fun stopSession(
+        @Path("id") sessionId: String,
+        @Body request: StopSessionRequest
+    ): ApiResponse<SessionSummary>
 
     @GET("attendance/sessions/{id}/results")
     suspend fun getSessionResults(@Path("id") sessionId: String): ApiResponse<SessionResultsData>
@@ -61,9 +77,14 @@ interface AttendanceApiService {
         @Body request: UpdateRecordsRequest
     ): ApiResponse<SessionResultsData>
 
-    @GET("reports/export/csv")
-    suspend fun exportCsvReport(
-        @Query("session_id") sessionId: String? = null
+    @GET("reports/export/session-csv")
+    suspend fun exportSessionPresentCsv(
+        @Query("session_id") sessionId: String
+    ): okhttp3.ResponseBody
+
+    @GET("reports/export/session-absent-csv")
+    suspend fun exportSessionAbsentCsv(
+        @Query("session_id") sessionId: String
     ): okhttp3.ResponseBody
 }
 

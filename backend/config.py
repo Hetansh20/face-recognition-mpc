@@ -37,3 +37,11 @@ class Config:
     
     # CORS
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
+
+    # Email (Brevo API preferred, Gmail SMTP fallback) — used to send
+    # present/absent CSVs to faculty after confirming attendance
+    SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
+    SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
+    BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+    SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", 587))

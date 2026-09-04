@@ -1,4 +1,5 @@
 import os
+import io
 import csv
 from datetime import datetime
 from backend.models.database import (
@@ -227,6 +228,92 @@ class ReportService:
 
         df.to_excel(filepath, index=False, engine='openpyxl')
         return filepath, filename
+
+    def _resolve_session(self, session_id):
+        sess = db_session.query(AttendanceSessionModel).filter(
+            (AttendanceSessionModel.id == session_id) | (AttendanceSessionModel.session_uuid == str(session_id))
+        ).first()
+        if not sess:
+            raise ValueError("Session not found")
+        return sess
+
+    def build_session_csv_bytes(self, session_id):
+        """Present-students CSV for one session, matching the web app's
+        build_session_csv column format exactly (GR Number, Enrollment
+        Number, Student Name, Email, Timestamp, Status, Confidence Score)."""
+        sess = self._resolve_session(session_id)
+        tt = db_session.query(TimetableModel).filter(TimetableModel.id == sess.timetable_id).first()
+        class_name = tt.class_name if tt else "Class"
+
+        records = db_session.query(AttendanceRecordModel).filter(
+            AttendanceRecordModel.session_id == sess.id,
+            AttendanceRecordModel.status == 'present'
+        ).all()
+
+        rows = []
+        for r in records:
+            stu = db_session.query(StudentModel).filter(StudentModel.id == r.student_id).first()
+            conf = round(r.confidence_score * 100, 1) if r.confidence_score is not None else "N/A"
+            rows.append({
+                "GR Number": stu.gr_number if stu else "",
+                "Enrollment Number": stu.enrollment_number if stu else "",
+                "Student Name": stu.name if stu else "",
+                "Email": stu.email if stu else "",
+                "Timestamp": r.timestamp.isoformat() if r.timestamp else "",
+                "Status": "Present",
+                "Confidence Score": conf
+            })
+        rows.sort(key=lambda x: str(x.get("Enrollment Number", "")))
+
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"Attendance_{class_name.replace(' ', '_')}_{ts}.csv"
+        fieldnames = ["GR Number", "Enrollment Number", "Student Name", "Email", "Timestamp", "Status", "Confidence Score"]
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        return buf.getvalue().encode("utf-8"), filename
+
+    def build_absent_csv_bytes(self, session_id):
+        """Absent-students CSV for one session, matching the web app's
+        build_absent_csv column format exactly (GR Number, Enrollment
+        Number, Student Name, Status, Date, Class)."""
+        sess = self._resolve_session(session_id)
+        tt = db_session.query(TimetableModel).filter(TimetableModel.id == sess.timetable_id).first()
+        class_name = tt.class_name if tt else "Class"
+
+        from backend.services.timetable_service import timetable_service
+        enrolled = timetable_service.get_students_for_timetable(sess.timetable_id)
+        present_ids = {
+            r.student_id for r in db_session.query(AttendanceRecordModel).filter(
+                AttendanceRecordModel.session_id == sess.id,
+                AttendanceRecordModel.status == 'present'
+            ).all()
+        }
+
+        rows = []
+        for s in enrolled:
+            if s["id"] in present_ids:
+                continue
+            stu = db_session.query(StudentModel).filter(StudentModel.id == s["id"]).first()
+            rows.append({
+                "GR Number": s.get("gr_number", ""),
+                "Enrollment Number": stu.enrollment_number if stu else "",
+                "Student Name": s.get("name", ""),
+                "Status": "Absent",
+                "Date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "Class": class_name
+            })
+        rows.sort(key=lambda x: str(x.get("Enrollment Number", "")))
+
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"Absent_{class_name.replace(' ', '_')}_{ts}.csv"
+        fieldnames = ["GR Number", "Enrollment Number", "Student Name", "Status", "Date", "Class"]
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        return buf.getvalue().encode("utf-8"), filename
 
     def get_audit_logs(self, limit=100, action=None, user_email=None):
         query = db_session.query(AuditLogModel)

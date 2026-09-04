@@ -9,7 +9,10 @@ import com.faceattend.app.data.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 
 // ── Auth ViewModel ───────────────────────────────────────────────────
 
@@ -49,6 +52,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getFacultyId(): Int = repository.getFacultyId()
     fun getUserName(): String = repository.getUserName()
+    fun getUserEmail(): String = repository.getUserEmail()
 }
 
 // ── Attendance ViewModel ─────────────────────────────────────────────
@@ -101,10 +105,35 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
             val res = repository.startSession(facultyId, timetableId)
             res.onSuccess {
                 _sessionState.value = SessionUiState.Active(it)
+                startPresentCountPolling(it.sessionId)
             }.onFailure {
                 _sessionState.value = SessionUiState.Error(it.message ?: "Failed to start session")
             }
         }
+    }
+
+    private var pollingJob: Job? = null
+
+    /** Polls session results every 3s while active, mirroring the web
+     * dashboard's setInterval on /api/faculty/session_status — keeps the
+     * present count fresh even if attendance is marked by another route. */
+    private fun startPresentCountPolling(sessionId: String) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (isActive) {
+                delay(3000)
+                val current = _sessionState.value
+                if (current !is SessionUiState.Active) break
+                repository.getSessionResults(sessionId).onSuccess { results ->
+                    _sessionState.value = SessionUiState.Active(results.session)
+                }
+            }
+        }
+    }
+
+    private fun stopPresentCountPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
     }
 
     fun processFrame(sessionId: String, jpegBytes: ByteArray) {
@@ -136,40 +165,85 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
     private val _uploadStatusMessage = MutableStateFlow<String?>(null)
     val uploadStatusMessage: StateFlow<String?> = _uploadStatusMessage.asStateFlow()
 
-    fun uploadGroupPhotos(sessionId: String, uris: List<android.net.Uri>, context: android.content.Context) {
+    // ── Upload -> Review -> Confirm (group photo attendance) ────────────
+    // Mirrors the web app's 3-step flow: upload up to 3 photos, review the
+    // recognized present/absent lists (with annotated bounding-box images),
+    // let the faculty edit them, then confirm to commit + email CSVs.
+
+    private val _reviewState = MutableStateFlow<GroupReviewResult?>(null)
+    val reviewState: StateFlow<GroupReviewResult?> = _reviewState.asStateFlow()
+
+    private val _isConfirming = MutableStateFlow(false)
+    val isConfirming: StateFlow<Boolean> = _isConfirming.asStateFlow()
+
+    private val _confirmResult = MutableStateFlow<ConfirmAttendanceResult?>(null)
+    val confirmResult: StateFlow<ConfirmAttendanceResult?> = _confirmResult.asStateFlow()
+
+    fun uploadAndReviewPhotos(sessionId: String, uris: List<android.net.Uri>, context: android.content.Context) {
         val selected = uris.take(3)
         if (selected.isEmpty()) return
 
         viewModelScope.launch {
             _isUploadingPhotos.value = true
+            _uploadStatusMessage.value = "Analyzing ${selected.size} photo(s)..."
             try {
-                selected.forEachIndexed { index, uri ->
-                    _uploadStatusMessage.value = "Processing photo ${index + 1} of ${selected.size}..."
-                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    if (bytes != null && bytes.isNotEmpty()) {
-                        val res = repository.captureGroupPhoto(sessionId, bytes)
-                        res.onSuccess { result ->
-                            _lastFrameResult.value = result
-                            val current = _sessionState.value
-                            if (current is SessionUiState.Active) {
-                                _sessionState.value = SessionUiState.Active(
-                                    current.session.copy(presentCount = result.totalPresent)
-                                )
-                            }
-                        }
-                    }
+                val photoBytes = selected.mapNotNull { uri ->
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                 }
-                _uploadStatusMessage.value = "Successfully processed ${selected.size} photo(s)!"
-            } catch (e: Exception) {
-                _uploadStatusMessage.value = "Error uploading photos: ${e.message}"
+                if (photoBytes.isEmpty()) {
+                    _uploadStatusMessage.value = "Could not read selected photos."
+                    return@launch
+                }
+                val res = repository.reviewGroupPhotos(sessionId, photoBytes)
+                res.onSuccess { review ->
+                    _reviewState.value = review
+                    _uploadStatusMessage.value = null
+                }.onFailure { err ->
+                    _uploadStatusMessage.value = "Error analyzing photos: ${err.message}"
+                }
             } finally {
                 _isUploadingPhotos.value = false
             }
         }
     }
 
+    fun clearReview() {
+        _reviewState.value = null
+        _confirmResult.value = null
+    }
+
     fun clearUploadStatus() {
         _uploadStatusMessage.value = null
+    }
+
+    fun confirmAttendance(
+        sessionId: String,
+        present: List<RosterEntry>,
+        facultyEmail: String?,
+        facultyName: String?,
+        onComplete: (() -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            _isConfirming.value = true
+            try {
+                val entries = present.map { PresentEntryRequest(it.grNumber, it.name, it.confidence, it.personId) }
+                val res = repository.confirmAttendance(sessionId, entries, facultyEmail, facultyName)
+                res.onSuccess { result ->
+                    _confirmResult.value = result
+                    val current = _sessionState.value
+                    if (current is SessionUiState.Active) {
+                        _sessionState.value = SessionUiState.Active(
+                            current.session.copy(presentCount = result.presentCount)
+                        )
+                    }
+                    onComplete?.invoke()
+                }.onFailure { err ->
+                    _uploadStatusMessage.value = "Error confirming attendance: ${err.message}"
+                }
+            } finally {
+                _isConfirming.value = false
+            }
+        }
     }
 
     private val _sessionResultsState = MutableStateFlow<SessionResultsData?>(null)
@@ -202,12 +276,13 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun exportAndShareCsv(sessionId: String, context: android.content.Context) {
+    fun exportAndShareCsv(sessionId: String, context: android.content.Context, absent: Boolean = false) {
         viewModelScope.launch {
-            val res = repository.downloadCsvReport(sessionId)
+            val res = if (absent) repository.downloadAbsentCsvReport(sessionId) else repository.downloadPresentCsvReport(sessionId)
             res.onSuccess { csvText ->
                 try {
-                    val file = java.io.File(context.cacheDir, "attendance_session_$sessionId.csv")
+                    val suffix = if (absent) "absent" else "present"
+                    val file = java.io.File(context.cacheDir, "attendance_${suffix}_$sessionId.csv")
                     file.writeText(csvText)
                     val uri = androidx.core.content.FileProvider.getUriForFile(
                         context,
@@ -231,14 +306,24 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun stopSession(sessionId: String) {
+    private val _stopSessionError = MutableStateFlow<String?>(null)
+    val stopSessionError: StateFlow<String?> = _stopSessionError.asStateFlow()
+
+    fun clearStopSessionError() {
+        _stopSessionError.value = null
+    }
+
+    /** Requires the faculty to re-enter their passcode before ending a
+     * session, mirroring the web app's /api/faculty/stop_session re-auth gate. */
+    fun stopSession(sessionId: String, passcode: String) {
         viewModelScope.launch {
-            val res = repository.stopSession(sessionId)
+            val res = repository.stopSession(sessionId, passcode)
             res.onSuccess {
+                stopPresentCountPolling()
                 _sessionState.value = SessionUiState.Completed(it)
                 loadSessionResults(sessionId)
             }.onFailure {
-                _sessionState.value = SessionUiState.Error(it.message ?: "Failed to end session")
+                _stopSessionError.value = it.message ?: "Failed to end session"
             }
         }
     }

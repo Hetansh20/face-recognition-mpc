@@ -75,12 +75,66 @@ def group_capture(session_id):
     except Exception as e:
         return api_error(str(e), code="CAPTURE_FAILED", status_code=400)
 
+@session_bp.route("/<session_id>/review", methods=["POST"])
+@token_required
+@require_roles("FACULTY", "ADMIN")
+def review_group_photos(session_id):
+    """Accepts up to 3 photos, runs recognition WITHOUT committing
+    attendance, and returns a present/absent list for the faculty to
+    review and edit before calling /confirm. Mirrors the web app's
+    Upload -> Review step."""
+    import base64
+
+    images = []
+    if request.files:
+        for key in request.files:
+            for file in request.files.getlist(key):
+                data = file.read()
+                if data:
+                    images.append(data)
+    elif request.is_json:
+        data = request.get_json() or {}
+        for img_b64 in data.get("images", []):
+            try:
+                images.append(base64.b64decode(img_b64.split(",")[-1]))
+            except Exception:
+                pass
+
+    if not images:
+        return api_error("At least one image is required", code="BAD_REQUEST", status_code=400)
+
+    try:
+        res = attendance_service.review_group_photos(session_id, images)
+        return api_response(data=res)
+    except Exception as e:
+        return api_error(str(e), code="REVIEW_FAILED", status_code=400)
+
+@session_bp.route("/<session_id>/confirm", methods=["POST"])
+@token_required
+@require_roles("FACULTY", "ADMIN")
+def confirm_attendance(session_id):
+    """Commits the faculty-edited present list from /review, auto-registers
+    unrecognized-but-matched faces, and emails present/absent CSVs to the
+    faculty. Mirrors the web app's Review -> Confirm step."""
+    data = request.get_json(silent=True) or {}
+    present_entries = data.get("present", [])
+    faculty_email = data.get("faculty_email") or (g.current_user or {}).get("email")
+    faculty_name = data.get("faculty_name")
+
+    try:
+        res = attendance_service.confirm_attendance(session_id, present_entries, faculty_email=faculty_email, faculty_name=faculty_name)
+        return api_response(data=res, message="Attendance confirmed")
+    except Exception as e:
+        return api_error(str(e), code="CONFIRM_FAILED", status_code=400)
+
 @session_bp.route("/<session_id>/stop", methods=["POST"])
 @token_required
 @require_roles("FACULTY", "ADMIN")
 def stop_session(session_id):
+    data = request.get_json(silent=True) or {}
+    passcode = data.get("passcode")
     try:
-        res = attendance_service.stop_session(session_id)
+        res = attendance_service.stop_session(session_id, passcode=passcode)
         return api_response(data=res, message="Attendance session completed")
     except Exception as e:
         return api_error(str(e), code="STOP_SESSION_FAILED", status_code=400)

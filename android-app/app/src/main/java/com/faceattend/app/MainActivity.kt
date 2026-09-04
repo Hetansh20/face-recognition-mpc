@@ -88,10 +88,34 @@ class MainActivity : ComponentActivity() {
                                 className = className,
                                 subjectName = subjectName,
                                 attendanceViewModel = attendanceViewModel,
+                                onReviewPhotos = {
+                                    navController.navigate("review/$sessionId/$className")
+                                },
                                 onFinishSession = {
                                     navController.navigate("summary") {
                                         popUpTo("dashboard") { inclusive = false }
                                     }
+                                }
+                            )
+                        }
+
+                        composable("review/{sessionId}/{className}") { backStackEntry ->
+                            val sessionId = backStackEntry.arguments?.getString("sessionId") ?: ""
+                            val className = backStackEntry.arguments?.getString("className") ?: ""
+
+                            GroupReviewScreen(
+                                sessionId = sessionId,
+                                className = className,
+                                facultyEmail = authViewModel.getUserEmail(),
+                                facultyName = authViewModel.getUserName(),
+                                attendanceViewModel = attendanceViewModel,
+                                onConfirmed = {
+                                    attendanceViewModel.clearReview()
+                                    navController.popBackStack("camera/{sessionId}/{className}/{subjectName}", inclusive = false)
+                                },
+                                onBack = {
+                                    attendanceViewModel.clearReview()
+                                    navController.popBackStack()
                                 }
                             )
                         }

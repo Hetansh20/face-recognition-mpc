@@ -231,10 +231,10 @@ fun SessionSummaryScreen(
                     }
                 }
 
-                // Export CSV Button
+                // Export Present CSV Button
                 Button(
                     onClick = {
-                        attendanceViewModel.exportAndShareCsv(sessionId, context)
+                        attendanceViewModel.exportAndShareCsv(sessionId, context, absent = false)
                     },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
@@ -242,6 +242,18 @@ fun SessionSummaryScreen(
                 ) {
                     Text("Export CSV", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
+            }
+
+            // Export Absent CSV Button — matches the web app's separate
+            // Present/Absent CSV exports emailed after confirming attendance
+            OutlinedButton(
+                onClick = {
+                    attendanceViewModel.exportAndShareCsv(sessionId, context, absent = true)
+                },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().height(44.dp)
+            ) {
+                Text("Export Absent List CSV", color = Color.White, fontSize = 13.sp)
             }
 
             // Return to Dashboard Button

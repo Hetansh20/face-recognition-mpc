@@ -63,6 +63,10 @@ data class StartSessionRequest(
     @SerializedName("timetable_id") val timetableId: Int? = null
 )
 
+data class StopSessionRequest(
+    @SerializedName("passcode") val passcode: String? = null
+)
+
 data class AttendanceSessionData(
     @SerializedName("id") val id: Int,
     @SerializedName("session_id") val sessionId: String,
@@ -127,4 +131,60 @@ data class UpdateRecordsRequest(
 data class RecordStatusUpdate(
     @SerializedName("student_id") val studentId: String,
     @SerializedName("status") val status: String
+)
+
+// ── Group Photo Review / Confirm (Upload -> Review -> Confirm) ─────────
+// Mirrors the web app's multi_photo_attend (review, no commit) and
+// confirm_attendance (commit + auto-register + email) two-step flow.
+
+data class RosterEntry(
+    @SerializedName("gr_number") val grNumber: String?,
+    @SerializedName("name") val name: String?,
+    @SerializedName("email") val email: String?,
+    @SerializedName("department") val department: String?,
+    @SerializedName("confidence") val confidence: Float?,
+    @SerializedName("person_id") val personId: String? = null,
+    @SerializedName("unregistered") val unregistered: Boolean = false
+)
+
+data class GroupReviewResult(
+    @SerializedName("session_id") val sessionId: String,
+    @SerializedName("total_faces") val totalFaces: Int,
+    @SerializedName("recognized_count") val recognizedCount: Int,
+    @SerializedName("unrecognized_count") val unrecognizedCount: Int,
+    @SerializedName("present") val present: List<RosterEntry>,
+    @SerializedName("absent") val absent: List<RosterEntry>,
+    @SerializedName("annotated_images") val annotatedImages: List<String>
+)
+
+data class PresentEntryRequest(
+    @SerializedName("gr_number") val grNumber: String?,
+    @SerializedName("name") val name: String?,
+    @SerializedName("confidence") val confidence: Float?,
+    @SerializedName("person_id") val personId: String? = null
+)
+
+data class ConfirmAttendanceRequest(
+    @SerializedName("present") val present: List<PresentEntryRequest>,
+    @SerializedName("faculty_email") val facultyEmail: String?,
+    @SerializedName("faculty_name") val facultyName: String?
+)
+
+data class MarkedEntry(
+    @SerializedName("gr_number") val grNumber: String?,
+    @SerializedName("name") val name: String?
+)
+
+data class EmailStatus(
+    @SerializedName("present_sent") val presentSent: Boolean,
+    @SerializedName("absent_sent") val absentSent: Boolean,
+    @SerializedName("message") val message: String?
+)
+
+data class ConfirmAttendanceResult(
+    @SerializedName("session_id") val sessionId: String,
+    @SerializedName("marked") val marked: List<MarkedEntry>,
+    @SerializedName("skipped") val skipped: List<MarkedEntry>,
+    @SerializedName("present_count") val presentCount: Int,
+    @SerializedName("email_status") val emailStatus: EmailStatus
 )
