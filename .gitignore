@@ -1,0 +1,158 @@
+# ==========================================
+# Environments, Secrets & Credentials
+# ==========================================
+.env
+*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+local.properties
+*.pem
+*.key
+*.keystore
+*.jks
+google-services.json
+
+# ==========================================
+# Python & Virtual Environments
+# ==========================================
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# Node.js & Admin Web App (admin-web)
+# ==========================================
+node_modules/
+admin-web/node_modules/
+admin-web/dist/
+admin-web/build/
+admin-web/.next/
+admin-web/out/
+admin-web/.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# ==========================================
+# Android Build Outputs & Gradle (android-app)
+# ==========================================
+.gradle/
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+android-app/captures/
+android-app/.navigation/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# ==========================================
+# Databases & Local Storage
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+attendance_system.db
+database.db
+faceattend.db
+
+# ==========================================
+# AI/ML Models, Embeddings & Datasets
+# ==========================================
+*.pt
+*.pth
+*.weights
+*.onnx
+*.h5
+*.pkl
+yolov8n-face.pt
+face_embeddings.pkl
+face_embeddings_insightface.pkl
+face_database.json
+
+# ==========================================
+# User Media, Uploads & Exported Reports
+# ==========================================
+registered_faces/
+attendance_reports/
+static/uploads/
+uploads/
+*.csv
+*.xlsx
+attendance_insightface.csv
+attendance_log.csv
+attendance_log.txt
+
+# ==========================================
+# Logs, Temporary & Output Dumps
+# ==========================================
+*.log
+error_log.txt
+output.txt
+scratch/
+.tmp/
+tmp/
+*.resolved
+
+# ==========================================
+# IDE & System Files
+# ==========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==========================================
+# Legacy & Standalone Scripts / Notes
+# ==========================================
+admin_ui.py
+main_launcher.py
+faculty_ui.py
+deepface_attendance_*.py
+insightface_attendance.py
+gpu_manager.py
+repair_models.py
+test_model.py
+face.py
+RESUME_ENTRY.md

@@ -1,0 +1,194 @@
+from database import Database
+from datetime import datetime, timedelta, timezone
+
+class TimetableManager:
+    """Manages timetable operations and active class detection"""
+    
+    def __init__(self):
+        self.db = Database()
+    
+    def add_timetable_entry(self, faculty_id, class_name, day_of_week, start_time, end_time,
+                            room_number=None, class_id=None, batch_id=None, subject_name=None):
+        """Add a new timetable entry"""
+        try:
+            timetable_id = self.db.add_timetable(
+                faculty_id, class_name, day_of_week, start_time, end_time,
+                room_number, class_id, batch_id, subject_name
+            )
+            return timetable_id, "Timetable entry added successfully"
+        except Exception as e:
+            return None, f"Error adding timetable: {str(e)}"
+
+    
+    def get_faculty_schedule(self, faculty_id):
+        """Get complete schedule for a faculty"""
+        try:
+            timetables = self.db.get_faculty_timetables(faculty_id)
+            return timetables, "Schedule retrieved successfully"
+        except Exception as e:
+            return None, f"Error retrieving schedule: {str(e)}"
+    
+    def get_active_class(self, faculty_id):
+        """Get the currently active class for a faculty"""
+        try:
+            timetables = self.db.get_faculty_timetables(faculty_id)
+            
+            if not timetables:
+                return None, "No timetables found"
+            
+            # Use IST (UTC+5:30) — Railway servers run in UTC
+            IST = timezone(timedelta(hours=5, minutes=30))
+            current_time = datetime.now(IST)
+            current_day = current_time.strftime("%A")
+            current_time_str = current_time.strftime("%H:%M")
+            
+            for timetable in timetables:
+                timetable_day = timetable['day_of_week']
+                start_time = timetable['start_time']
+                end_time = timetable['end_time']
+                
+                if timetable_day.lower() == current_day.lower():
+                    # Normal class (e.g., 09:00 to 11:00)
+                    if start_time < end_time:
+                        if start_time <= current_time_str <= end_time:
+                            return timetable, "Active class found"
+                    # Overnight class (e.g., 19:18 to 07:18)
+                    else:
+                        if current_time_str >= start_time or current_time_str <= end_time:
+                            return timetable, "Active class found"
+            
+            return None, "No active class at this time"
+        except Exception as e:
+            return None, f"Error: {str(e)}"
+    
+    def get_next_class(self, faculty_id):
+        """Get the next upcoming class for a faculty"""
+        try:
+            timetables = self.db.get_faculty_timetables(faculty_id)
+
+            if not timetables:
+                return None, "No timetables found"
+
+            IST = timezone(timedelta(hours=5, minutes=30))
+            current_time = datetime.now(IST)
+            current_day = current_time.strftime("%A")
+            current_time_str = current_time.strftime("%H:%M")
+
+            # Look for next class today
+            for timetable in timetables:
+                timetable_day = timetable['day_of_week']
+                start_time = timetable['start_time']
+
+                if timetable_day.lower() == current_day.lower():
+                    if start_time > current_time_str:
+                        return timetable, "Next class found today"
+
+            # Look for classes in next 7 days
+            for i in range(1, 8):
+                future_date = current_time + timedelta(days=i)
+                future_day = future_date.strftime("%A")
+
+                for timetable in timetables:
+                    timetable_day = timetable['day_of_week']
+
+                    if timetable_day.lower() == future_day.lower():
+                        return timetable, f"Next class found on {future_day}"
+
+            return None, "No upcoming classes found"
+        except Exception as e:
+            return None, f"Error: {str(e)}"
+
+    def get_active_substitution_class(self, substitute_faculty_id):
+        """Check if any substitution timetable is currently active for this faculty."""
+        try:
+            IST = timezone(timedelta(hours=5, minutes=30))
+            today_str = datetime.now(IST).strftime("%Y-%m-%d")
+            current_day = datetime.now(IST).strftime("%A")
+            current_time_str = datetime.now(IST).strftime("%H:%M")
+
+            sub_timetables = self.db.get_substitute_timetables(substitute_faculty_id, today_str)
+            if not sub_timetables:
+                return None, "No substitution classes today"
+
+            for t in sub_timetables:
+                day = t['day_of_week'] if hasattr(t, 'keys') else (t[6] if len(t) > 6 else '')
+                start = t['start_time'] if hasattr(t, 'keys') else (t[7] if len(t) > 7 else '')
+                end = t['end_time'] if hasattr(t, 'keys') else (t[8] if len(t) > 8 else '')
+
+                if day.lower() == current_day.lower() and start and end:
+                    if start < end:
+                        if start <= current_time_str <= end:
+                            return t, "Active substitution class found"
+                    else:
+                        if current_time_str >= start or current_time_str <= end:
+                            return t, "Active substitution class found (overnight)"
+
+            return None, "No active substitution class right now"
+        except Exception as e:
+            return None, f"Error: {str(e)}"
+    
+    def get_today_substitution_classes(self, substitute_faculty_id):
+        """Get ALL substitution classes for today, regardless of current time."""
+        try:
+            IST = timezone(timedelta(hours=5, minutes=30))
+            today_str = datetime.now(IST).strftime("%Y-%m-%d")
+            sub_timetables = self.db.get_substitute_timetables(substitute_faculty_id, today_str)
+            if not sub_timetables:
+                return [], "No substitution classes today"
+            return sub_timetables, f"Found {len(sub_timetables)} substitution class(es)"
+        except Exception as e:
+            return [], f"Error: {str(e)}"
+    
+    def get_class_students(self, timetable_id):
+        """Get students enrolled in the specific class/batch of the timetable entry"""
+        try:
+            entry = self.db.get_timetable_by_id(timetable_id)
+            if not entry:
+                return [], "Timetable entry not found"
+            
+            class_id = entry['class_id']
+            batch_id = entry['batch_id']
+            class_name = entry['class_name']
+            
+            # Dynamic Resolution: If class_id is missing, try to find it by name
+            if not class_id and class_name:
+                try:
+                    self.db.connect()
+                    self.db.cursor.execute("SELECT id FROM classes WHERE name = ? LIMIT 1", (class_name,))
+                    row = self.db.cursor.fetchone()
+                    if row: class_id = row[0]
+                except: pass
+                finally: self.db.disconnect()
+            
+            if batch_id:
+                students = self.db.get_students_by_batch(batch_id)
+                msg = f"Retrieved {len(students)} students for specific batch"
+            elif class_id:
+                students = self.db.get_students_by_class(class_id)
+                msg = f"Retrieved {len(students)} students for full class"
+            else:
+                # STRICT FALLBACK: Do NOT return all students.
+                # Only return students whose class_name matches the timetable class_name (fuzzy)
+                # or return empty if no clear match.
+                students = []
+                msg = "No class/batch ID found. Please update the timetable entry."
+                
+            return students, msg
+        except Exception as e:
+            return None, f"Error: {str(e)}"
+    
+    def validate_time_format(self, time_str):
+        """Validate time format (HH:MM)"""
+        try:
+            datetime.strptime(time_str, "%H:%M")
+            return True
+        except ValueError:
+            return False
+    
+    def validate_day_format(self, day_str):
+        """Validate day of week"""
+        valid_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        return day_str in valid_days
+
+# Initialize timetable manager
+timetable_manager = TimetableManager()

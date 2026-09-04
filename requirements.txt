@@ -1,0 +1,28 @@
+# Core Web
+flask
+gunicorn
+
+# Face Recognition Engine
+insightface
+onnxruntime
+opencv-python-headless
+
+# YOLO (group photo multi-face detection)
+ultralytics
+
+# Database + Auth
+bcrypt
+
+# Data / ML
+numpy
+scipy
+Pillow
+pandas
+
+# Utilities
+python-dotenv
+requests
+
+#Excel libraries
+openpyxl
+xlrd

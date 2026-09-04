@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Top-Left Scanner Corner -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M27,41 V31 C27,28.79 28.79,27 31,27 H41" />
+
+    <!-- Top-Right Scanner Corner -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M67,27 H77 C79.21,27 81,28.79 81,31 V41" />
+
+    <!-- Bottom-Left Scanner Corner -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M27,67 V77 C27,79.21 28.79,81 31,81 H41" />
+
+    <!-- Bottom-Right Scanner Corner -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M67,81 H77 C79.21,81 81,79.21 81,77 V67" />
+
+    <!-- Biometric Face Head Outline -->
+    <path
+        android:strokeColor="#F8FAFC"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M40,46 C40,38.27 46.27,32 54,32 C61.73,32 68,38.27 68,46 C68,54 62,60 54,64 C46,60 40,54 40,46 Z" />
+
+    <!-- Left Eye Dot -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M47,44 A2,2 0 1,1 47,43.99 Z" />
+
+    <!-- Right Eye Dot -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M61,44 A2,2 0 1,1 61,43.99 Z" />
+
+    <!-- Smile / Feature Arc -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M48,53 C51,56 57,56 60,53" />
+
+    <!-- Horizontal Scan Line -->
+    <path
+        android:strokeColor="#34D399"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M25,54 H83" />
+</vector>
