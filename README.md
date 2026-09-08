@@ -52,7 +52,7 @@ flowchart TD
 
 ### Why review and confirmation matter
 
-Recognition results are treated as **proposed attendance**, not immediately committed attendance. Faculty can review detected students, edit records, and then confirm the final list. This reduces the risk of a false positive becoming an attendance record.
+Recognition results are treated as **proposed attendance**, not immediately committed attendance. Faculty can review detected students, edit records, and then confirm the final list. This makes the attendance workflow human-reviewed rather than fully automatic.
 
 ---
 
@@ -145,7 +145,7 @@ Typical responsibilities:
 
 The Android application is written in Kotlin and uses Jetpack Compose, CameraX, Retrofit, OkHttp, and coroutines.
 
-It is intended to turn an Android device into a mobile attendance terminal. The Android manifest requests camera/network permissions and supports cleartext HTTP for local development.
+It is intended to turn an Android device into a mobile attendance terminal.
 
 ---
 
@@ -268,13 +268,13 @@ face-recognition-mpc/
 │   ├── build.gradle.kts
 │   └── settings.gradle.kts
 │
-├── backend/                            # Modular Flask application
+├── backend/                           # Modular Flask application
 │   ├── api/                            # REST API blueprints
 │   │   ├── auth_routes.py
 │   │   ├── device_routes.py
 │   │   ├── session_routes.py
 │   │   └── ...
-│   ├── face_engine/                    # Recognition engine
+│   ├── face_engine/                   # Recognition engine
 │   │   ├── embedding_service.py
 │   │   ├── group_recognizer.py
 │   │   └── ...
@@ -310,7 +310,7 @@ Recommended development environment:
 - At least several GB of free disk space for Python/AI dependencies and model files
 - Optional: Docker and Docker Compose-compatible tooling
 
-A CPU-only setup is supported by the current backend configuration. GPU acceleration can be introduced separately if the environment and model stack support it.
+A CPU-only setup is supported by the current backend configuration.
 
 ---
 
@@ -493,7 +493,7 @@ Database / Local Storage
 
 ## 15. Data & Storage
 
-The project intentionally keeps sensitive/generated data out of Git. The `.gitignore` covers categories such as:
+The project intentionally keeps generated data out of Git. The `.gitignore` covers categories such as:
 
 - `.env` files and credentials
 - Android `local.properties`
@@ -505,8 +505,6 @@ The project intentionally keeps sensitive/generated data out of Git. The `.gitig
 - uploads and generated attendance reports
 - CSV/XLSX exports
 - logs and temporary files
-
-This separation is important because biometric images and embeddings should not be treated like ordinary source-code assets.
 
 ---
 
@@ -549,96 +547,7 @@ For exact request and response schemas, inspect the corresponding route modules 
 
 ---
 
-## 18. Testing
-
-The repository includes test/QA utilities for backend end-to-end flows and Android application checks. Before making production changes, validate at least:
-
-1. Authentication and token refresh.
-2. Student/faculty roster operations.
-3. Timetable/session creation.
-4. Live recognition.
-5. Group-photo recognition.
-6. Review/edit/confirm workflow.
-7. Duplicate attendance prevention.
-8. Present/absent report generation.
-9. Device registration and blocking.
-10. Android-to-backend connectivity.
-
-For local Python tests, use the project's existing test files and your configured Python test runner.
-
----
-
-## 19. Troubleshooting
-
-### Backend cannot start
-
-Check Python and dependency versions:
-
-```bash
-python --version
-pip --version
-```
-
-Then reinstall the backend dependencies inside the active virtual environment.
-
-### Admin dashboard cannot reach API
-
-Verify:
-
-- Flask is running on port `5000`.
-- Vite is running on port `3000`.
-- The Vite `/api` proxy points to the backend.
-- CORS configuration allows the frontend origin.
-
-### Android cannot connect
-
-Do not use `localhost` from an Android emulator to reach the host computer. Use:
-
-```text
-10.0.2.2
-```
-
-For a physical device, use the host computer's LAN IP and ensure firewall/network rules allow the connection.
-
-### Recognition is inaccurate
-
-Check:
-
-- Camera/image quality.
-- Face size and lighting.
-- Registered face images.
-- Recognition thresholds.
-- Whether the expected model files are available.
-- Whether the group-recognition YOLO model is installed when needed.
-
-Avoid lowering thresholds blindly; test with representative classroom images and review false positives/false negatives.
-
-### Database problems
-
-Confirm `DATABASE_URL` and that the configured database is reachable. For local SQLite development, make sure the process has permission to create/write the database file.
-
----
-
-## 20. Security & Privacy Considerations
-
-Because FaceAttend processes biometric information, deployments should use appropriate security controls:
-
-- Never commit `.env`, passwords, API secrets, private keys, or biometric datasets.
-- Use strong production JWT/secret keys.
-- Use HTTPS in production rather than cleartext HTTP.
-- Restrict database access.
-- Protect exported attendance reports.
-- Limit administrative permissions by role.
-- Control who can register/update biometric identities.
-- Keep audit logs for sensitive administrative operations.
-- Define an appropriate retention/deletion policy for face images and embeddings.
-- Obtain required institutional/user consent and comply with applicable privacy and biometric-data requirements.
-
-The repository's local-development Android configuration permits cleartext HTTP; this should not be treated as a production security configuration.
-
----
-
-## 21. Development Workflow
+## 18. Development Workflow
 
 A typical feature workflow is:
 
@@ -656,25 +565,7 @@ For changes affecting face recognition, test both individual/live and group-phot
 
 ---
 
-## 22. Useful Configuration Points
-
-| Setting / File | Purpose |
-|---|---|
-| `backend/config.py` | Backend environment/configuration |
-| `.env` | Local secrets and environment overrides |
-| `admin-web/vite.config.ts` | Web port and API proxy |
-| `android-app/.../ApiClient.kt` / repository networking | Android API connection |
-| `backend/face_engine/embedding_service.py` | Embedding storage/matching |
-| `backend/face_engine/group_recognizer.py` | Group-photo recognition |
-| `backend/services/attendance_service.py` | Attendance lifecycle/business rules |
-| `backend/services/report_service.py` | Reports and analytics |
-| `backend/api/session_routes.py` | Session API endpoints |
-| `backend/api/auth_routes.py` | Authentication endpoints |
-| `seed_db.py` | Local database initialization |
-
----
-
-## 23. Deployment Topology
+## 19. Deployment Topology
 
 ```mermaid
 flowchart TB
@@ -692,19 +583,7 @@ For a small local deployment, SQLite can replace PostgreSQL and the reverse prox
 
 ---
 
-## 24. Project Strengths
-
-- **Modular backend design** separates HTTP routes, business logic, AI processing, and persistence.
-- **Human-in-the-loop attendance** prevents recognition output from automatically becoming final attendance.
-- **Multiple clients** support browser-based administration and Android-based attendance capture.
-- **Multiple recognition modes** support live frames and classroom group photos.
-- **Reporting built into the workflow** reduces manual attendance processing.
-- **SQLite/PostgreSQL flexibility** makes the system practical for local development and scalable deployments.
-- **Device management and audit logging** provide operational controls beyond simple face matching.
-
----
-
-## 25. Known Repository Notes
+## 20. Known Repository Notes
 
 - AI model files, face images, embedding caches, databases, and reports are intentionally ignored by Git.
 - The repository has both root-level Python files and a modular `backend/` application. Developers should be aware of this when switching between local execution and the existing Docker workflow.
@@ -713,7 +592,7 @@ For a small local deployment, SQLite can replace PostgreSQL and the reverse prox
 
 ---
 
-## 26. License
+## 21. License
 
 No explicit open-source license is currently identified in the repository. Unless a license is added, normal copyright restrictions apply to the project source code.
 
@@ -721,13 +600,13 @@ If this project is intended for public reuse, consider adding an appropriate lic
 
 ---
 
-## 27. Acknowledgements
+## 22. Acknowledgements
 
 This project builds on open-source technologies including Flask, React, Vite, Kotlin, Jetpack Compose, CameraX, OpenCV, InsightFace, Ultralytics YOLO, SQLAlchemy, Retrofit, and OkHttp.
 
 ---
 
-## 28. Quick Start Summary
+## 23. Quick Start Summary
 
 ```text
 1. Clone repository
