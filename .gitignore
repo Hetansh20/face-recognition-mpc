@@ -156,3 +156,6 @@ repair_models.py
 test_model.py
 face.py
 RESUME_ENTRY.md
+
+# Generated reports containing real student PII — local only
+docs/
