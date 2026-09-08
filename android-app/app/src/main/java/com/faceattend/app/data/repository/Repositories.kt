@@ -40,7 +40,18 @@ class AuthRepository(private val context: Context) {
     }
 
     fun logout() {
-        prefs.edit().clear().apply()
+        // Clear only session/identity keys — NOT the whole prefs blob, which
+        // would also wipe the user-configured server_url and device_id
+        // (previously caused the app to silently revert to the hardcoded
+        // default server address on every logout).
+        prefs.edit()
+            .remove("access_token")
+            .remove("refresh_token")
+            .remove("faculty_id")
+            .remove("user_name")
+            .remove("user_email")
+            .remove("user_role")
+            .apply()
     }
 
     fun getFacultyId(): Int = prefs.getInt("faculty_id", 0)
