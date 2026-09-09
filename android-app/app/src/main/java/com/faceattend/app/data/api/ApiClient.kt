@@ -2,6 +2,7 @@ package com.faceattend.app.data.api
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.faceattend.app.BuildConfig
 import com.faceattend.app.data.model.*
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -124,10 +125,16 @@ object ApiClient {
     private var cachedRetrofit: Retrofit? = null
     private var cachedBaseUrl: String? = null
 
+    // Release builds always point at the production backend baked in via
+    // BuildConfig — the in-app "Server Address Settings" override (debug-only,
+    // see LoginScreen) is the only way to change it during development.
+    private val defaultBaseUrl: String
+        get() = if (BuildConfig.DEBUG) "http://10.101.79.81:5000/api/v1/" else BuildConfig.PROD_SERVER_URL
+
     fun getBaseUrl(context: Context): String {
+        if (!BuildConfig.DEBUG) return BuildConfig.PROD_SERVER_URL
         val prefs = context.getSharedPreferences("faceattend_prefs", Context.MODE_PRIVATE)
-        return prefs.getString("server_url", "http://10.101.79.81:5000/api/v1/")
-            ?: "http://10.101.79.81:5000/api/v1/"
+        return prefs.getString("server_url", defaultBaseUrl) ?: defaultBaseUrl
     }
 
     fun setServerAddress(address: String, context: Context) {

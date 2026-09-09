@@ -21,17 +21,25 @@ class Config:
     ACCESS_TOKEN_EXPIRES = timedelta(hours=int(os.getenv("ACCESS_TOKEN_EXPIRES_HOURS", 8)))
     REFRESH_TOKEN_EXPIRES = timedelta(days=int(os.getenv("REFRESH_TOKEN_EXPIRES_DAYS", 30)))
     
-    # Database Configuration
+    # Persistent data directory — point this at a mounted volume in
+    # production (e.g. Railway Volumes) so uploaded face photos, the trained
+    # embedding cache, and the SQLite file (if not using Postgres) survive
+    # redeploys. Defaults to the project root for local development.
+    DATA_DIR = os.getenv("DATA_DIR", ROOT_DIR)
+
+    # Database Configuration — set DATABASE_URL to a postgres:// URL in
+    # production (e.g. Railway's managed Postgres addon); SQLite is fine for
+    # local development only, since it lives on disk under DATA_DIR.
     DATABASE_URL = os.getenv(
         "DATABASE_URL",
-        f"sqlite:///{os.path.join(ROOT_DIR, 'attendance_system.db')}"
+        f"sqlite:///{os.path.join(DATA_DIR, 'attendance_system.db')}"
     )
-    
+
     # Storage Paths
-    FACES_DIR = os.path.join(ROOT_DIR, "registered_faces")
-    FACE_DB_JSON = os.path.join(ROOT_DIR, "face_database.json")
-    EMB_CACHE_PKL = os.path.join(ROOT_DIR, "face_embeddings_insightface.pkl")
-    REPORTS_DIR = os.path.join(ROOT_DIR, "attendance_reports")
+    FACES_DIR = os.path.join(DATA_DIR, "registered_faces")
+    FACE_DB_JSON = os.path.join(DATA_DIR, "face_database.json")
+    EMB_CACHE_PKL = os.path.join(DATA_DIR, "face_embeddings_insightface.pkl")
+    REPORTS_DIR = os.path.join(DATA_DIR, "attendance_reports")
     YOLO_MODEL_PATH = os.path.join(ROOT_DIR, "yolov8n-face.pt")
     
     # Face Recognition Thresholds

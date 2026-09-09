@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.faceattend.app.BuildConfig
 import com.faceattend.app.data.api.ApiClient
 import com.faceattend.app.ui.viewmodel.AuthUiState
 import com.faceattend.app.ui.viewmodel.AuthViewModel
@@ -28,8 +29,8 @@ fun LoginScreen(
     val context = LocalContext.current
     val uiState by authViewModel.uiState.collectAsState()
 
-    var email by remember { mutableStateOf("fac1@gmail.com") }
-    var password by remember { mutableStateOf("123456") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
 
     var serverUrl by remember { mutableStateOf(ApiClient.getBaseUrl(context)) }
     var showServerSettings by remember { mutableStateOf(false) }
@@ -96,7 +97,7 @@ fun LoginScreen(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            if (errMsg.contains("10.0.2.2") || errMsg.contains("failed to connect") || errMsg.contains("timeout")) {
+                            if (BuildConfig.DEBUG && (errMsg.contains("10.0.2.2") || errMsg.contains("failed to connect") || errMsg.contains("timeout"))) {
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = "💡 Physical Phone Tip: Set to http://10.101.79.81:5000/api/v1/ (Wi-Fi) or http://127.0.0.1:5000/api/v1/ (USB reverse)",
@@ -141,47 +142,52 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Server Settings Toggle
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showServerSettings = !showServerSettings }
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (showServerSettings) "▼ Server Address Settings" else "▶ Server Address Settings",
-                        color = Color(0xFF818CF8),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                AnimatedVisibility(visible = showServerSettings || uiState is AuthUiState.Error) {
-                    Column(modifier = Modifier.padding(top = 8.dp)) {
-                        OutlinedTextField(
-                            value = serverUrl,
-                            onValueChange = {
-                                serverUrl = it
-                                ApiClient.setServerAddress(it, context)
-                            },
-                            label = { Text("Backend Server URL", color = Color(0xFF94A3B8)) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF10B981),
-                                unfocusedBorderColor = Color(0xFF334155),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                // Server address override — debug builds only. Release
+                // builds (what gets published to the Play Store) always use
+                // the production URL baked in via BuildConfig.PROD_SERVER_URL,
+                // with no way to point the app at an arbitrary server.
+                if (BuildConfig.DEBUG) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showServerSettings = !showServerSettings }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "Wi-Fi: 10.101.79.81:5000 | USB Cable: 127.0.0.1:5000 | Emulator: 10.0.2.2:5000",
-                            color = Color(0xFF64748B),
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                            text = if (showServerSettings) "▼ Server Address Settings" else "▶ Server Address Settings",
+                            color = Color(0xFF818CF8),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
+                    }
+
+                    AnimatedVisibility(visible = showServerSettings || uiState is AuthUiState.Error) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            OutlinedTextField(
+                                value = serverUrl,
+                                onValueChange = {
+                                    serverUrl = it
+                                    ApiClient.setServerAddress(it, context)
+                                },
+                                label = { Text("Backend Server URL", color = Color(0xFF94A3B8)) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF10B981),
+                                    unfocusedBorderColor = Color(0xFF334155),
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "Wi-Fi: 10.101.79.81:5000 | USB Cable: 127.0.0.1:5000 | Emulator: 10.0.2.2:5000",
+                                color = Color(0xFF64748B),
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                            )
+                        }
                     }
                 }
 
@@ -189,7 +195,9 @@ fun LoginScreen(
 
                 Button(
                     onClick = {
-                        ApiClient.setServerAddress(serverUrl, context)
+                        if (BuildConfig.DEBUG) {
+                            ApiClient.setServerAddress(serverUrl, context)
+                        }
                         authViewModel.login(email, password)
                     },
                     enabled = uiState !is AuthUiState.Loading,

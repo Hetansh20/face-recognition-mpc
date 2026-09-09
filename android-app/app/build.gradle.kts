@@ -18,6 +18,12 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Production backend URL baked into release builds — update this to
+        // your actual hosted backend before building for the Play Store.
+        // Must end in "/api/v1/". Debug builds ignore this and default to a
+        // dev address, with the in-app server-address override still shown.
+        buildConfigField("String", "PROD_SERVER_URL", "\"https://your-backend-domain.example.com/api/v1/\"")
     }
 
     buildTypes {
@@ -35,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
