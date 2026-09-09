@@ -98,7 +98,10 @@ faceattend.db
 *.onnx
 *.h5
 *.pkl
-yolov8n-face.pt
+# yolov8n-face.pt IS committed despite the *.pt rule above — it's a small
+# (6.4MB) pretrained model weight needed at Docker build time (Railway
+# builds from git, not local disk), not per-deployment generated state.
+!yolov8n-face.pt
 face_embeddings.pkl
 face_embeddings_insightface.pkl
 face_database.json
