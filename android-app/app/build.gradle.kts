@@ -3,14 +3,23 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val uploadStoreFile = providers.gradleProperty("FACEATTEND_UPLOAD_STORE_FILE").orNull
+    ?: error("FACEATTEND_UPLOAD_STORE_FILE is not configured")
+val uploadKeyAlias = providers.gradleProperty("FACEATTEND_UPLOAD_KEY_ALIAS").orNull
+    ?: error("FACEATTEND_UPLOAD_KEY_ALIAS is not configured")
+val uploadStorePassword = providers.gradleProperty("FACEATTEND_UPLOAD_STORE_PASSWORD").orNull
+    ?: error("FACEATTEND_UPLOAD_STORE_PASSWORD is not configured")
+val uploadKeyPassword = providers.gradleProperty("FACEATTEND_UPLOAD_KEY_PASSWORD").orNull
+    ?: error("FACEATTEND_UPLOAD_KEY_PASSWORD is not configured")
+
 android {
     namespace = "com.faceattend.app"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.faceattend.app"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
@@ -19,16 +28,22 @@ android {
             useSupportLibrary = true
         }
 
-        // Production backend URL baked into release builds — update this to
-        // your actual hosted backend before building for the Play Store.
-        // Must end in "/api/v1/". Debug builds ignore this and default to a
-        // dev address, with the in-app server-address override still shown.
-        buildConfigField("String", "PROD_SERVER_URL", "\"https://your-backend-domain.example.com/api/v1/\"")
+        buildConfigField("String", "PROD_SERVER_URL", "\"https://face-recognition-mpc-production.up.railway.app/api/v1/\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file(uploadStoreFile)
+            storePassword = uploadStorePassword
+            keyAlias = uploadKeyAlias
+            keyPassword = uploadKeyPassword
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
